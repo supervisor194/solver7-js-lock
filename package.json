@@ -1,0 +1,13 @@
+{
+  "name" : "solver7-js-lock",
+  "version" : "0.0.1",
+  "description": "simple wait/notify, lock and semaphore mechanisms for javascript",
+  "author": "gary seven <garyseven@solver7.com>",
+  "type": "module",
+  "keywords": ["javascript", "async", "wait", "notify", "lock", "semaphore"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url" : "https://github.com/solver7/solver7-js-lock.git"
+  }
+}
