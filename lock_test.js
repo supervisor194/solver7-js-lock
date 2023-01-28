@@ -2,9 +2,9 @@ import {Lock, WaitNotify, Semaphore} from "./lock.js";
 
 
 function assert(expected, actual, msg) {
-    if (expected!==actual) {
+    if (expected !== actual) {
         console.log(msg, expected + " vs. " + actual);
-        throw new Error(msg + " - Expected: "+ expected + " vs. Actual: " + actual);
+        throw new Error(msg + " - Expected: " + expected + " vs. Actual: " + actual);
     }
 
 }
@@ -15,13 +15,13 @@ let sem = new Semaphore(10);
 
 let cnt = 0;
 let t1 = await l1.lock();
-for(let i=0;i<20;i++) {
+for (let i = 0; i < 20; i++) {
     (async () => {
         let n;
         try {
             n = await sem.acquire();
             cnt++;
-            if(cnt%10===0) {
+            if (cnt % 10 === 0) {
                 l1.unlock(t1);
             }
             await new Promise(r => setTimeout(r, 10000));
@@ -31,15 +31,14 @@ for(let i=0;i<20;i++) {
         }
     })();
 }
-await new Promise( r=> setTimeout(r, 3000));
+await new Promise(r => setTimeout(r, 3000));
 let t2 = await l1.lock();
 assert(10, cnt, "cnt should be 10");
 l1.unlock(t2);
-await new Promise(r=> setTimeout(r,3000));
+await new Promise(r => setTimeout(r, 3000));
 t1 = await l1.lock();
-t2 = await  l1.lock();
+t2 = await l1.lock();
 assert(20, cnt, "cnt should be 20");
-
 
 
 let lock_timeout = new Lock();
@@ -50,7 +49,7 @@ let timeout_message = "oops";
 try {
     my_token = await lock_timeout.lock_timeout(500);
     assert(false, true, "should not get here");
-} catch(e) {
+} catch (e) {
     timeout_message = e.message;
 } finally {
     lock_timeout.unlock(my_token);  // this should not be allowed to unlock
@@ -61,27 +60,28 @@ lock_timeout.unlock(token);
 
 try {
     token = await lock_timeout.lock_timeout(500);
-} catch(e) {
+} catch (e) {
     assert(false, true, "should not get here");
 }
-assert(token!==null, true, "should have a token");
+assert(token !== null, true, "should have a token");
 
 let lock = new Lock();
 let lock2 = new Lock();
 let lock2_token = await lock2.lock();
 
 let i = 0;
+
 async function doit(n) {
     let token = await lock.lock();
 
     let f = i;
-    await new Promise(r => setTimeout(r, Math.floor(Math.random()*500)));
-    if(f!==i) {
+    await new Promise(r => setTimeout(r, Math.floor(Math.random() * 500)));
+    if (f !== i) {
         throw new Error("f not the same");
     }
 
     i++;
-    if(i===99) {
+    if (i === 99) {
         // console.log("unlock lock2");
         lock2.unlock(lock2_token);
     }
@@ -91,18 +91,19 @@ async function doit(n) {
 }
 
 async function try_to_schedule(n) {
-    await new Promise(r => setTimeout(r, Math.floor(Math.random()*1000)));
+    await new Promise(r => setTimeout(r, Math.floor(Math.random() * 1000)));
     doit(n);
 
 }
-for(let j=0;j<100;j++) {
+
+for (let j = 0; j < 100; j++) {
     try_to_schedule(j);
 }
 lock2_token = await lock2.lock();
 // console.log("all done");
 assert(99, i, "values not correct");
 
-if(true) {
+if (true) {
     let foo_t = new WaitNotify();
     try {
         await foo_t.wait_timeout(1000);
@@ -113,7 +114,7 @@ if(true) {
 }
 
 
-if(true) {
+if (true) {
     let lock3 = new Lock();
     let lock3_token = await lock3.lock();
 
@@ -130,7 +131,7 @@ if(true) {
                     throw new Error("bad");
                 }
                 count++;
-                if(count===99) {
+                if (count === 99) {
                     // console.log("done with runExclusive");
                     lock3.unlock(lock3_token);
                 }
@@ -143,7 +144,7 @@ if(true) {
 }
 
 
-if(true) {
+if (true) {
     let final_foo = new WaitNotify();
     (async () => {
         await new Promise(r2 => setTimeout(r2, 1000));
@@ -159,4 +160,35 @@ if(true) {
         throw new Error("should not get here: " + e.message);
     }
 
+}
+
+
+if (true) {
+    let sem0 = new Semaphore(1);
+    let outter_n = await sem0.acquire();
+    let outs = [];
+    outs.push("outter acquired");
+    (async () => {
+        outs.push("inner do acquire");
+        sem0.acquire().then(async (n) => {
+            outs.push("inner we got: " + n + " working for 2 seconds before release");
+            await new Promise(r => setTimeout(r, 2000));
+            outs.push("inner doing release");
+            await sem0.release(n);
+            outs.push("inner released");
+        });
+    })();
+
+    await new Promise(r => setTimeout(r, 1000));
+    outs.push("outter releasing");
+    await sem0.release(outter_n);
+    await new Promise(r => setTimeout(r, 1000));
+    outs.push("outter trying to acquire again");
+    await sem0.acquire();
+    outs.push("outter got it");
+
+    let expected = "outter acquired,inner do acquire,outter releasing,inner we got: 1 working for 2 seconds before release,outter trying to acquire again,inner doing release,inner released,outter got it";
+    let actual = outs.join();
+
+    assert(expected, actual, "values don't match");
 }
