@@ -1,5 +1,20 @@
 import {Lock, WaitNotify, Semaphore} from "./lock.js";
 
+let fsem = new Semaphore(20);
+
+let cnt = 0;
+
+for(let i=0;i<10000;i++) {
+    (async ()=> {
+        let token = await fsem.acquire();
+
+        cnt++;
+
+        await fsem.release(token);
+    })();
+}
+
+await new Promise(r=> setTimeout(r, 10000));
 
 function assert(expected, actual, msg) {
     if (expected !== actual) {
@@ -13,7 +28,7 @@ function assert(expected, actual, msg) {
 let l1 = new Lock();
 let sem = new Semaphore(10);
 
-let cnt = 0;
+cnt = 0;
 let t1 = await l1.lock();
 for (let i = 0; i < 20; i++) {
     (async () => {

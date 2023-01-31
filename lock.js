@@ -1,4 +1,3 @@
-
 export class WaitNotify {
     constructor() {
         this.resolve = null;
@@ -7,28 +6,37 @@ export class WaitNotify {
     }
 
     wait() {
-        this._p = new Promise((resolve, reject) => { this.resolve = resolve});
-        this._p.then( (v)=> { /* console.log("resolved with: " + v)*/ });
+        this._p = new Promise((resolve, reject) => {
+            this.resolve = resolve
+        });
+        this._p.then((v) => { /* console.log("resolved with: " + v)*/
+        });
         return this._p;
     }
 
     wait_timeout(t) {
         const awaitTimeout = (timeout, reason) =>
-            new Promise( (resolve, reject) => {
-                setTimeout(()=> (reason===undefined ? resolve() : reject(reason)), timeout);
+            new Promise((resolve, reject) => {
+                setTimeout(() => (reason === undefined ? resolve() : reject(reason)), timeout);
             });
         const execute = (promise, timeout, reason) =>
-            Promise.race( [promise, awaitTimeout(timeout, reason)]);
+            Promise.race([promise, awaitTimeout(timeout, reason)]);
 
-        let p = new Promise( (resolve, reject) => { this.resolve = resolve; this.reject = reject});
-        p.then( (v) => { /*console.log("resolved with: " + v)*/ })
-            .catch( (e) => { /* console.log("rejecting with: " + e); */ this.reject(e)});
+        let p = new Promise((resolve, reject) => {
+            this.resolve = resolve;
+            this.reject = reject
+        });
+        p.then((v) => { /*console.log("resolved with: " + v)*/
+        })
+            .catch((e) => { /* console.log("rejecting with: " + e); */
+                this.reject(e)
+            });
 
         return execute(p, t, {message: "timed out"});
     }
 
     notify(msg) {
-        if(this.resolve) {
+        if (this.resolve) {
             this.resolve(msg);
         }
     }
@@ -44,6 +52,7 @@ class Node {
     }
 
 }
+
 class Queue {
 
     constructor() {
@@ -53,7 +62,7 @@ class Queue {
 
     put(val) {
         let node = new Node(val, null);
-        if(this.tail) {
+        if (this.tail) {
             this.tail.next = node;
         } else {
             this.head = node;
@@ -64,7 +73,7 @@ class Queue {
 
     take() {
         let node = this.head;
-        if(node!=null) {
+        if (node != null) {
             this.head = node.next;
         } else {
             throw new Error("no remaining nodes");
@@ -77,7 +86,7 @@ class Queue {
 class Tokens {
     constructor(n) {
         this.queue = new Queue();
-        for(let i=0;i<n;i++) {
+        for (let i = 0; i < n; i++) {
             this.queue.put(i);
         }
     }
@@ -91,6 +100,7 @@ class Tokens {
     }
 
 }
+
 export class Lock {
 
     constructor() {
@@ -99,7 +109,7 @@ export class Lock {
         this.tokens = new Tokens(100000);
     }
 
-    async runExclusive( to_run, timeout=null) {
+    async runExclusive(to_run, timeout = null) {
         // console.log("doing runExclusive");
         let token;
         try {
@@ -116,7 +126,7 @@ export class Lock {
     }
 
     async lock() {
-        if(this.locked===-1) {
+        if (this.locked === -1 && this.waiters.length === 0) {
             this.locked = this.tokens.next();
             return this.locked;
         }
@@ -124,15 +134,16 @@ export class Lock {
         let waiter = new WaitNotify();
         this.waiters.push(waiter);
         await waiter.wait();
-        if(this.locked!==-1) {
+        if (this.locked !== -1) {
             throw new Error("locked should be -1");
         }
+        this.waiters.shift();
         this.locked = this.tokens.next();
         return this.locked;
     }
 
     async lock_timeout(t) {
-        if(this.locked===-1) {
+        if (this.locked === -1 && this.waiters.length===0) {
             this.locked = this.tokens.next();
             return this.locked;
         }
@@ -140,82 +151,86 @@ export class Lock {
         this.waiters.push(waiter);
         try {
             await waiter.wait_timeout(t);
-        } catch(e) {
+        } catch (e) {
             // console.log(e.message + " : can't lock...");
             let i = this.waiters.indexOf(waiter);
-            this.waiters.slice(i,1);
+            this.waiters.slice(i, 1);
             throw e;
         }
-        if(this.locked!==-1) {
+        if (this.locked !== -1) {
             throw new Error("locked should be =1");
         }
+        this.waiters.shift();
         this.locked = this.tokens.next();
         return this.locked;
     }
 
 
     unlock(token) {
-        if(this.locked!==token) {
+        if (this.locked !== token) {
             // console.log("unlock does nothing");
             return;
         }
-        if(this.waiters.length>0) {
-            let waiter = this.waiters.shift();
-            // console.log("found waiter: " + waiter);
-            waiter.notify("unlock");
-        }
         this.tokens.free(token);
         this.locked = -1;
+        let waiter;
+        if ((waiter = this.waiters[0])) {
+            waiter.notify("unlock");
+        }
+
     }
 }
 
 
 export class Semaphore {
 
-    constructor(n=1) {
+    constructor(n = 1) {
         this.available = n;
         this.the_lock = new Lock();
         this.waiters = [];
     }
 
-    async acquire(n=1) {
+    async acquire(n = 1) {
         let lock_token;
-        try {
-            while(true) {
+        let waiter;
+        while (true) {
+            try {
                 lock_token = await this.the_lock.lock();
                 if (this.available > n - 1) {
                     this.available -= n;
                     return n;
                 }
-                let waiter = new WaitNotify();
+                waiter = new WaitNotify();
                 this.waiters.push(waiter);
+            } finally {
                 this.the_lock.unlock(lock_token);
-                try {
-                    await waiter.wait();
-                } catch (e) {
-                    console.log(e.message);
-                    let i = this.waiters.indexOf(waiter);
-                    this.waiters.slice(i, 1);
-                    throw e;
-                }
             }
-        } finally {
-            this.the_lock.unlock(lock_token);
+            try {
+                await waiter.wait();
+            } catch (e) {
+                console.log(e.message);
+                let i = this.waiters.indexOf(waiter);
+                this.waiters.slice(i, 1);
+                throw e;
+            }
         }
+
     }
 
-    async release(n=1) {
-        if(!n) {
+    async release(n = 1) {
+        if (!n) {
             return;
         }
         let lock_token;
         try {
             lock_token = await this.the_lock.lock();
-            this.available+=n;
-            if(this.waiters.length>0) {
+            this.available += n;
+
+            if (this.waiters.length > 0) {
                 let waiter = this.waiters.shift();
                 waiter.notify("unlock");
             }
+
         } finally {
             this.the_lock.unlock(lock_token);
         }
