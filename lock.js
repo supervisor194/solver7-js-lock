@@ -154,7 +154,7 @@ export class Lock {
         } catch (e) {
             // console.log(e.message + " : can't lock...");
             let i = this.waiters.indexOf(waiter);
-            this.waiters.slice(i, 1);
+            this.waiters.splice(i, 1);
             throw e;
         }
         if (this.locked !== -1) {
@@ -210,7 +210,7 @@ export class Semaphore {
             } catch (e) {
                 console.log(e.message);
                 let i = this.waiters.indexOf(waiter);
-                this.waiters.slice(i, 1);
+                this.waiters.splice(i, 1);
                 throw e;
             }
         }
