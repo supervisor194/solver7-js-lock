@@ -25,6 +25,38 @@ function assert(expected, actual, msg) {
 }
 
 
+let N = 10000;
+let p1_p2_sem = new Semaphore(0);
+let p1 = (async ()=> {
+    for(let i=0;i<N;i++) {
+        p1_p2_sem.release(1);
+        await new Promise(r=> setTimeout(r, 2));
+    }
+});
+let sum = 0;
+let loop_cnt = 0;
+let wait_sem = new Semaphore(0);
+let p2 = (async ()=> {
+    while(true) {
+        loop_cnt++;
+        let n = await p1_p2_sem.acquire(1, true);
+        sum+=n;
+        if(sum>=N) {
+            wait_sem.release(1);
+            return;
+        }
+        await new Promise(r=> setTimeout(r, 3000));
+        console.log(n);
+    }
+});
+p2();
+p1();
+await wait_sem.acquire();
+assert(N, sum, "wrong sum");
+assert(true, loop_cnt<15, "too many loops");
+console.log("sum : " + sum);
+console.log("loops: " + loop_cnt);
+
 let l1 = new Lock();
 let sem = new Semaphore(10);
 

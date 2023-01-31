@@ -35,7 +35,7 @@ export class WaitNotify {
         return execute(p, t, {message: "timed out"});
     }
 
-    notify(msg) {
+    async notify(msg) {
         if (this.resolve) {
             this.resolve(msg);
         }
@@ -143,7 +143,7 @@ export class Lock {
     }
 
     async lock_timeout(t) {
-        if (this.locked === -1 && this.waiters.length===0) {
+        if (this.locked === -1 && this.waiters.length === 0) {
             this.locked = this.tokens.next();
             return this.locked;
         }
@@ -190,15 +190,44 @@ export class Semaphore {
         this.waiters = [];
     }
 
-    async acquire(n = 1) {
+
+    async acquire_all() {
+        let lock_token;
+        let waiter;
+        while (true) {
+            try {
+                lock_token = await this.the_lock.lock();
+                if (this.available) {
+                    let n = this.available;
+                    this.available = 0;
+                    return n;
+                }
+                waiter = new WaitNotify();
+                this.waiters.push(waiter);
+            } finally {
+                this.the_lock.unlock(lock_token);
+            }
+            try {
+                await waiter.wait();
+            } catch (e) {
+                console.error(e.message);
+                let i = this.waiters.indexOf(waiter);
+                this.waiters.splice(i, 1);
+                throw e;
+            }
+        }
+    }
+
+    async acquire(n = 1, all = false) {
         let lock_token;
         let waiter;
         while (true) {
             try {
                 lock_token = await this.the_lock.lock();
                 if (this.available > n - 1) {
-                    this.available -= n;
-                    return n;
+                    let a = all ? this.available : n;
+                    this.available -= a;
+                    return a;
                 }
                 waiter = new WaitNotify();
                 this.waiters.push(waiter);
